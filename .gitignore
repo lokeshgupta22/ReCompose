@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Models & data
+*.pt
+*.onnx
+*.pth
+data/
+checkpoints/
+wandb/
+
+# Node
+node_modules/
+web/dist/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Notebooks
+.ipynb_checkpoints/
