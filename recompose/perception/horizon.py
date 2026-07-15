@@ -34,7 +34,9 @@ def estimate_horizon_tilt(
 
     angles: list[float] = []
     weights: list[float] = []
-    for (x1, y1, x2, y2) in lines[:, 0]:
+    # HoughLinesP output shape drifts across cv2 versions ((N,1,4) vs (N,4));
+    # normalize instead of indexing an assumed axis.
+    for x1, y1, x2, y2 in lines.reshape(-1, 4):
         dx, dy = x2 - x1, y2 - y1
         length = float(np.hypot(dx, dy))
         if length < 1:
