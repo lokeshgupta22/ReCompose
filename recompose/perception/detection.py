@@ -49,6 +49,7 @@ class SubjectDetector:
                 result.boxes.xyxy.tolist(),
                 result.boxes.cls.tolist(),
                 result.boxes.conf.tolist(),
+                strict=True,
             ):
                 label = names[int(cls)]
                 if label not in SUBJECT_CLASSES:
