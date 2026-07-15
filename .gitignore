@@ -20,7 +20,8 @@ wandb/
 node_modules/
 web/dist/
 
-# OS / editor
+# OS / editor / local tooling
+.claude/
 .DS_Store
 .idea/
 .vscode/
