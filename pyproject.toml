@@ -3,12 +3,11 @@ name = "recompose"
 version = "0.1.0"
 description = "AI photo recomposition: subject-aware smart cropping with composition scoring"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "numpy>=1.24",
     "opencv-python-headless>=4.9",
     "pillow>=10.0",
-    "rembg>=2.0.50",
     "onnxruntime>=1.17",
     "ultralytics>=8.2",
     "fastapi>=0.110",
