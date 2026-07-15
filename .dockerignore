@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.claude
+node_modules
+web/dist
+web/node_modules
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+tests
+notebooks
+docs
+*.md
+!README.md

@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Protocol
 
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.imaging import decode_image, downscale, saliency_data_uri
 from api.schemas import AnalyzeResponse, CropOut, ImageInfo, SubjectOut
@@ -28,8 +31,12 @@ class AnalysisPipeline(Protocol):
     ) -> AnalysisResult: ...
 
 
+DEFAULT_STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "dist"
+
+
 def create_app(
     pipeline_factory: Callable[[], AnalysisPipeline] = RecomposePipeline.with_default_models,
+    static_dir: Path | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -72,7 +79,30 @@ def create_app(
         )
         return _serialize(result)
 
+    if static_dir is not None and static_dir.is_dir():
+        _mount_frontend(app, static_dir)
+
     return app
+
+
+def _mount_frontend(app: FastAPI, static_dir: Path) -> None:
+    """Serve the built React app from the same process/port as the API.
+
+    Hashed build assets get their own mount (correct content-types, cache
+    headers); a catch-all route serves index.html for everything else, so
+    client-side routes and hard refreshes both resolve. Registered last so
+    the /api/* routes above always match first.
+    """
+    index_html = static_dir / "index.html"
+    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+
+    @app.get("/")
+    async def spa_root() -> FileResponse:
+        return FileResponse(index_html)
+
+    @app.get("/{full_path:path}")
+    async def spa_catchall(full_path: str) -> FileResponse:
+        return FileResponse(index_html)
 
 
 def _serialize(result: AnalysisResult) -> AnalyzeResponse:
