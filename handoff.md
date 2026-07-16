@@ -81,15 +81,17 @@ again:
 - **Phase 1 (rule-based baseline pipeline) is complete.** Perception → grid-anchor
   candidate generation → hard constraints → five-rule composition scorer → FastAPI →
   React frontend. Verified end-to-end against a real photo, not just unit tests.
-- **119 tests, all passing.** Zero tests require downloading a model (perception
-  models sit behind `Protocol`s; tests inject fakes). Run: `uv run pytest`.
+- **134 tests, all passing.** Zero tests require downloading a model (perception
+  models sit behind `Protocol`s; tests inject fakes; YOLO pre/post-processing is
+  tested against synthetic tensors). Run: `uv run pytest`.
 - **Lint clean.** `uv run ruff check .` — zero suppressions; every finding was fixed,
   not silenced.
 - **GitHub is up to date.** `main` locally matches `origin/main` exactly at `92414d6`.
   No other local branches exist (an `hf-space` branch was created, then deliberately
   deleted — see §6).
-- **Deployment is paused, mid-flight, on a known blocker.** See §5. This is the
-  single most important "pick up here" item.
+- **Deployment blocker is fixed locally (2026-07-16), pending push + Render
+  verification.** See §5 — the OOM root cause is resolved and measured under
+  budget; the remaining step is pushing `main` and watching the Render deploy.
 - **Phase 2 (learned crop scorer on GAICD) has not started.** No dataset downloaded,
   no training code written yet. This is the natural next step once deployment is
   resolved or explicitly deprioritized.
@@ -220,37 +222,28 @@ deleted the branch since it was unused. No code loss either way.)
    the push output. Fixed via `git checkout main && git cherry-pick <fix-commit>`,
    then rebuilt `hf-space` cleanly on top (later deleted entirely once Render was
    confirmed working and HF was deprioritized).
-4. **Current, unresolved blocker: runtime OOM.** The Docker build now succeeds
-   (weights bake in at build time, image exports fine), but the running container
-   dies with `Out of memory (used over 512Mi)` — Render's free-tier RAM ceiling —
-   shortly after FastAPI's lifespan startup finishes loading models. Root cause,
-   confirmed from the build log: installing `ultralytics` (used for YOLOv8n subject
-   detection) transitively pulls in a **CUDA-enabled PyTorch** build — visible in the
-   log as `triton==3.7.1`, `nvidia-nvshmem-cu13`, `torchvision==0.28.0`, etc. — even
-   though inference is CPU-only. That plus `onnxruntime` (for U²-Net saliency)
-   coexisting in one process very plausibly exceeds 512MB before any request even
-   arrives.
-
-### The two fix options presented to the user (they chose to pause rather than pick — ask again on resume)
-
-1. **(Recommended) Rewrite `SubjectDetector` to run pure ONNX Runtime.** Export
-   `yolov8n.onnx` in a throwaway Docker build stage that has `ultralytics`/torch
-   installed, copy only the resulting `.onnx` file into the final slim runtime stage,
-   and hand-roll the YOLOv8 pre/post-processing (letterbox resize, box decode,
-   NMS via `cv2.dnn.NMSBoxes` since we already depend on OpenCV) directly against
-   `onnxruntime.InferenceSession`. This removes torch/torchvision/ultralytics from
-   the runtime image and process entirely — free, and it's literally the Phase-4
-   "ONNX export" roadmap item from the original plan, just pulled earlier out of
-   necessity. Real code change requiring new tests (TDD as always): the pre/post-
-   processing logic should be tested against synthetic tensors with known expected
-   boxes, not just against a live model.
-2. **Upgrade Render to a paid instance** for more RAM (~$7/mo+). Fastest, but
-   contradicts the user's explicit "deploy freely" requirement — only take this path
-   if the user explicitly says cost is now acceptable.
-
-**When resuming: don't re-diagnose. Just ask which of these two the user wants, then
-implement.** All the diagnostic work above is done and confirmed from real build
-logs.
+4. **RESOLVED (2026-07-16): runtime OOM.** The container died with `Out of memory
+   (used over 512Mi)` because `ultralytics` transitively installed CUDA-enabled
+   PyTorch. Fixed with the ONNX rewrite (the recommended option), plus two more
+   levers that local peak-RSS measurement proved necessary:
+   - `SubjectDetector` now runs `yolov8n.onnx` on pure `onnxruntime` with
+     hand-rolled letterbox/decode/NMS (tested against synthetic tensors; verified
+     against the old ultralytics path at IoU 0.96–0.99 on real photos).
+     `ultralytics`+`onnx` moved to an `export` extra; the Dockerfile grew a
+     throwaway weights stage. Torch never enters the runtime image.
+   - That alone was NOT enough: a 20ms RSS sampler against the real server showed
+     555MB peak during the first request. onnxruntime's CPU memory arena retains
+     ~240MB of activation buffers forever (disabled), each extra thread holds
+     scratch buffers (sessions pinned to 1 thread — Render free tier has 0.1 CPU
+     anyway), and **full U²-Net's first inference peaks over 512MB entirely on its
+     own** — so the default saliency model is now u2netp (4.4MB), with
+     `RECOMPOSE_SALIENCY_MODEL=u2net` restoring the full model on bigger hardware.
+     Crop quality: 3 of 4 aspect ratios chose identical crops under both models on
+     the reference photo.
+   - **Measured final footprint: 421MB peak / 200MB steady / 92MB startup**,
+     ~0.85s per analyze request, single-threaded, on macOS (Linux will differ
+     somewhat — watch the first Render deploy).
+   - CMD honors Render's injected `PORT` env var now (shell-form CMD).
 
 ---
 
@@ -312,9 +305,10 @@ quantization, CI, public demo) follow after that — full detail in `docs/PLAN.m
 ## 8. Quick reference
 
 ```bash
-# backend (Python 3.12 via uv; first run downloads U²-Net ~170MB + YOLOv8n ~6MB)
+# backend (Python 3.12 via uv; first run downloads U²-Net-p ~4MB and exports
+# yolov8n.onnx via the export extra - hence --all-extras for dev)
 uv sync --all-extras
-uv run pytest                                 # 119 tests, no downloads needed
+uv run pytest                                 # 134 tests, no downloads needed
 uv run ruff check .                           # zero suppressions, must stay clean
 uv run uvicorn api.server:app --port 8000     # serves API + built frontend if
                                                # web/dist exists (npm run build)

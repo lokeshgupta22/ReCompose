@@ -33,8 +33,8 @@ photo ──► 1. Perception ──► 2. Candidate crops ──► 3. Constrai
 
 | Sense | Model | Output | Role downstream |
 |---|---|---|---|
-| Saliency | U²-Net (pretrained, ONNX Runtime) | H×W map in [0,1] of where the eye is drawn | Soft signal: drives scoring |
-| Subjects | YOLOv8n, filtered to photographic subject classes | labeled boxes | Hard constraint: never cut a subject |
+| Saliency | U²-Net-p (pretrained, ONNX Runtime; full U²-Net via `RECOMPOSE_SALIENCY_MODEL=u2net`) | H×W map in [0,1] of where the eye is drawn | Soft signal: drives scoring |
+| Subjects | YOLOv8n exported to ONNX, filtered to photographic subject classes | labeled boxes | Hard constraint: never cut a subject |
 | Horizon | Classical CV (Canny → HoughLinesP) | tilt angle or `None` | Straightening suggestion |
 
 Design notes:
@@ -44,6 +44,15 @@ Design notes:
   resolution, and we only ever used it as a 40-line convenience around the same ONNX
   session. Owning the preprocessing (resize to 320², ImageNet mean/std, HWC→CHW) also
   means we control exactly what the model sees.
+- **YOLOv8n also runs on `onnxruntime`, not ultralytics.** Ultralytics transitively
+  installs CUDA-enabled torch — hundreds of MB resident, which OOMed the 512MB
+  deploy target. It's now export-time tooling only (`uv sync --extra export`); the
+  runtime ships a 12MB `.onnx` plus hand-rolled letterbox/decode/NMS, all unit-tested
+  against synthetic tensors. Sessions run arena-off and single-threaded: measured
+  421MB peak / 200MB steady for the whole server, inside the 512MB free-tier limit.
+- **U²-Net-p (4.4MB) is the default saliency model**: full U²-Net's first inference
+  peaks over 512MB on its own. On the reference photo, 3 of 4 aspect ratios choose
+  identical crops under either model — boxes do the structural work, saliency ranks.
 - **Saliency stays continuous** (never thresholded to a binary mask): the weighted
   centroid must let a bright face pull harder than a dim jacket, and retention scoring
   must price losing a face higher than losing a shadow. Quantize a signal only when
@@ -163,7 +172,7 @@ client does no pixel math at all.
 
 ## Engineering practices
 
-- **TDD throughout**: 113 tests, each written before its implementation (red → green).
+- **TDD throughout**: 134 tests, each written before its implementation (red → green).
   Geometry, constraints, scoring, and the pipeline are all testable without any model
   download — perception models sit behind `Protocol`s and tests inject fakes
   (dependency inversion).
@@ -192,15 +201,16 @@ recompose/            core library (no web concerns)
 └── types.py          Box, CropCandidate, ScoredCrop — dependency-free geometry
 api/                  FastAPI: schemas, imaging helpers, app factory, uvicorn entry
 web/                  React + Vite client
-tests/                113 tests; run without downloading any model
+tests/                134 tests; run without downloading any model
 ```
 
 ## Getting started
 
 ```bash
-# backend (Python 3.12 via uv; first run downloads U²-Net ~170MB + YOLOv8n ~6MB)
+# backend (Python 3.12 via uv; first run downloads U²-Net-p ~4MB and exports YOLOv8n
+# to ONNX - the export needs the dev/export extras, hence --all-extras)
 uv sync --all-extras
-uv run pytest                                   # 113 tests, no downloads needed
+uv run pytest                                   # 134 tests, no downloads needed
 uv run uvicorn api.server:app --port 8000
 
 # frontend
