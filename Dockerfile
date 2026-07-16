@@ -31,13 +31,21 @@ ENV HOME=/home/user \
 WORKDIR /home/user/app
 
 # Dependencies before source: this layer only invalidates when
-# pyproject.toml/uv.lock change, not on every code edit.
-COPY --chown=user pyproject.toml uv.lock ./
-RUN uv sync --frozen
+# pyproject.toml/uv.lock change, not on every code edit. --no-install-project
+# installs only third-party dependencies and skips building our own
+# `recompose` package - which needs README.md and the source tree, neither
+# copied yet, and would otherwise fail hatchling's metadata validation here.
+COPY --chown=user pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-install-project
 
 COPY --chown=user recompose/ recompose/
 COPY --chown=user api/ api/
 COPY --from=frontend --chown=user /app/web/dist web/dist
+
+# Now install the local project itself. Dependencies are already cached
+# from the layer above, so this is fast regardless of how often source
+# changes - only this final sync re-runs on every code edit.
+RUN uv sync --frozen
 
 # Bake model weights into the image at build time. Without this, the
 # container's first request (or worse, its first request after waking
