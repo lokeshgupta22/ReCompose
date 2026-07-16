@@ -89,9 +89,10 @@ again:
 - **GitHub is up to date.** `main` locally matches `origin/main` exactly at `92414d6`.
   No other local branches exist (an `hf-space` branch was created, then deliberately
   deleted — see §6).
-- **Deployment blocker is fixed locally (2026-07-16), pending push + Render
-  verification.** See §5 — the OOM root cause is resolved and measured under
-  budget; the remaining step is pushing `main` and watching the Render deploy.
+- **DEPLOYED AND LIVE (2026-07-16): <https://recompose.onrender.com/>** — verified
+  end-to-end against the production URL (health 200; a real photo returned 2
+  subjects + 4 aspect crops in ~7s, the expected 0.1-CPU slowdown vs ~0.85s
+  locally). Phase 1 is fully shipped; §5 records how the OOM was fixed.
 - **Phase 2 (learned crop scorer on GAICD) has not started.** No dataset downloaded,
   no training code written yet. This is the natural next step once deployment is
   resolved or explicitly deprioritized.

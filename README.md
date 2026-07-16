@@ -2,6 +2,11 @@
 
 **Upload a photo. Get it professionally composed — and see exactly why.**
 
+**Live demo: [recompose.onrender.com](https://recompose.onrender.com/)** — runs on a
+free 512MB / 0.1-CPU instance, so expect ~1 min to wake from idle sleep and a few
+seconds per photo. (How the whole pipeline fits in 512MB is a design story of its
+own — see the perception notes below.)
+
 ReCompose finds the subject of a photograph, understands its composition (rule of
 thirds, balance, headroom, horizon), and returns the best crop for every target
 aspect ratio, each with a per-rule score breakdown explaining the choice. Every
