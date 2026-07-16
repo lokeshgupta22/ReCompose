@@ -97,14 +97,16 @@ class GAICDataset:
         with Image.open(image_path) as pil_image:
             rgb = np.asarray(pil_image.convert("RGB"))
         image = torch.from_numpy(rgb.copy()).permute(2, 0, 1)  # HWC -> CHW
-        if self._transform is not None:
-            image = self._transform(image)
-
         boxes = torch.tensor([(c.x1, c.y1, c.x2, c.y2) for c in crops], dtype=torch.float32)
         scores = torch.tensor([c.score for c in crops], dtype=torch.float32)
-        return {
+        sample = {
             "image": image,
             "boxes": boxes.reshape(-1, 4),
             "scores": scores,
             "image_id": stem,
         }
+        # Sample-level, not image-level: geometric transforms (resize, flip)
+        # must move the boxes together with the pixels or the labels lie.
+        if self._transform is not None:
+            sample = self._transform(sample)
+        return sample

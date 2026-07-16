@@ -45,10 +45,15 @@ def test_boxes_and_scores_match_annotation_order(gaicd_root):
     assert sample["scores"].tolist() == pytest.approx([3.5, 2.0])
 
 
-def test_transform_is_applied_to_the_image(gaicd_root):
-    dataset = GAICDataset(gaicd_root, "train", transform=lambda image: image.float() / 255.0)
-    assert dataset[1]["image"].dtype == torch.float32
-    assert dataset[1]["image"].max() <= 1.0
+def test_transform_receives_and_returns_the_whole_sample(gaicd_root):
+    # Geometric transforms must see image AND boxes together - transforming
+    # one without the other silently desynchronizes the annotations.
+    def double_boxes(sample):
+        sample["boxes"] = sample["boxes"] * 2
+        return sample
+
+    dataset = GAICDataset(gaicd_root, "train", transform=double_boxes)
+    assert torch.equal(dataset[0]["boxes"][0], torch.tensor([20.0, 40.0, 120.0, 80.0]))
 
 
 def test_unknown_split_rejected(gaicd_root):
