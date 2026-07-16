@@ -178,10 +178,10 @@ class SubjectDetector:
     """Detects subjects whose boxes act as hard constraints for cropping."""
 
     def __init__(self, model_path: Path | None = None, conf: float = 0.4):
-        import onnxruntime as ort
+        from recompose.perception.onnx_session import create_session
 
         path = _ensure_weights(model_path or default_model_dir() / "yolov8n.onnx")
-        self._session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        self._session = create_session(path)
         self._input_name = self._session.get_inputs()[0].name
         self.conf = conf
 
