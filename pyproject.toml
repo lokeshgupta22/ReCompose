@@ -22,6 +22,11 @@ export = [
     "ultralytics>=8.2",
     "onnx>=1.16",
 ]
+# Training-time only (Phase 2): never installed in the deployed runtime
+# image, which must stay within Render's 512MB - same rule as `export`.
+train = [
+    "torch>=2.2",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",
