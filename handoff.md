@@ -54,8 +54,10 @@ again:
    `Protocol` (open/closed, dependency inversion), single-responsibility modules.
 6. **Tiny, single-purpose commits.** Every discrete step gets its own local commit
    with a message explaining the *why*, not just the what. The git log is meant to
-   read as the project's build diary. Commit locally as you go; the user pushes to
-   remotes deliberately (see below), not automatically on every commit.
+   read as the project's build diary. Push policy (updated 2026-07-16, once the
+   deployment went live): push to `origin/main` when a step is done and working —
+   but ALWAYS run the full test suite and lint immediately before every push,
+   because `main` auto-deploys to the live site. Never push with failing tests.
 7. **Never add `Co-Authored-By` or any AI-attribution trailer to commits.** This must
    read as the user's own independent project. Plain messages, user's own git
    identity only. (This was an explicit, firm correction early on — don't reintroduce
