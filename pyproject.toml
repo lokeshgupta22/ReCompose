@@ -9,13 +9,19 @@ dependencies = [
     "opencv-python-headless>=4.9",
     "pillow>=10.0",
     "onnxruntime>=1.17",
-    "ultralytics>=8.2",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
+# Export-time only: turns yolov8n.pt into yolov8n.onnx. Never installed in
+# the deployed runtime image - ultralytics pulls in CUDA-enabled torch,
+# which is what OOMed Render's 512MB free tier in the first place.
+export = [
+    "ultralytics>=8.2",
+    "onnx>=1.16",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",
