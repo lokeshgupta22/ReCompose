@@ -66,3 +66,13 @@ def test_eval_mode_is_deterministic():
     boxes = [torch.tensor([[0.0, 0.0, 16.0, 16.0]])]
     with torch.no_grad():
         assert torch.equal(model(images, boxes), model(images, boxes))
+
+
+def test_factory_builds_a_working_timm_model_without_downloads():
+    from training.model import build_crop_scorer
+
+    model = build_crop_scorer(pretrained=False, hidden=8).eval()  # random init, no download
+    images = torch.rand(1, 3, 64, 64)
+    with torch.no_grad():
+        scores = model(images, [torch.tensor([[4.0, 4.0, 60.0, 60.0]])])
+    assert scores.shape == (1,)

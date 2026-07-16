@@ -87,3 +87,39 @@ class CropScorer(nn.Module):
         inside_sum = rois.mean(dim=(2, 3)) * cells
         outside_cells = (height * width - cells).clamp(min=1.0)
         return (totals[image_index] - inside_sum) / outside_cells
+
+
+class _LastFeatureLevel(nn.Module):
+    """Adapts timm's features_only list output to a single feature map."""
+
+    def __init__(self, features: nn.Module):
+        super().__init__()
+        self.features = features
+
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        return self.features(images)[-1]
+
+
+def build_crop_scorer(
+    backbone_name: str = "mobilenetv3_large_100",
+    pretrained: bool = True,
+    **kwargs,
+) -> CropScorer:
+    """CropScorer with a timm backbone truncated at stride 16.
+
+    Stride 16 balances two pressures: deeper features are more semantic
+    (better taste) but coarser (a 256px input gives a 16x16 map - small
+    crops shrink to very few cells). Going to stride 32 would halve that
+    again; stride 8 doubles compute. Swapping backbones for ablations is
+    a one-string change, courtesy of timm.
+    """
+    import timm  # deferred: only the factory needs timm installed
+
+    features = timm.create_model(
+        backbone_name, features_only=True, out_indices=(3,), pretrained=pretrained
+    )
+    channels = features.feature_info.channels()[-1]
+    stride = features.feature_info.reduction()[-1]
+    return CropScorer(
+        _LastFeatureLevel(features), feature_channels=channels, stride=stride, **kwargs
+    )
